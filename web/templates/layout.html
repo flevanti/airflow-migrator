@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airflow Connection Migrator</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .htmx-request { opacity: 0.5; transition: opacity 200ms; }
+        .htmx-request .loading { display: inline-block; }
+        .loading { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+<nav class="bg-indigo-600 text-white p-4 shadow-lg">
+    <div class="container mx-auto flex justify-between items-center">
+        <h1 class="text-xl font-bold">✈️ Airflow Connection Migrator</h1>
+        <div class="space-x-4">
+            <a href="/" class="hover:text-indigo-200">Home</a>
+            <a href="/profiles" class="hover:text-indigo-200">Profiles</a>
+            <a href="/export" class="hover:text-indigo-200">Export</a>
+            <a href="/import" class="hover:text-indigo-200">Import</a>
+        </div>
+    </div>
+</nav>
+
+<main class="container mx-auto p-6">
+    {{template "content" .}}
+</main>
+
+<footer class="text-center text-gray-500 p-4 mt-8">
+    <p>Airflow Connection Migrator v1.0</p>
+</footer>
+</body>
+</html>

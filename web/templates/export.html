@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+{{template "head" .}}
+<body class="bg-gray-100 min-h-screen">
+    {{template "nav" .}}
+
+    <main class="container mx-auto p-6">
+        <div class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📤 Export Connections</h2>
+                
+                <form hx-post="/htmx/export" hx-target="#result">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Source Profile</label>
+                            <select name="profile_id" id="profile-select" required hx-get="/htmx/connections/list" hx-target="#connections" hx-trigger="change" class="w-full p-2 border rounded">
+                                <option value="">Select profile...</option>
+                                {{range .Profiles}}<option value="{{.ID}}">{{.Name}} ({{.DBHost}}/{{.DBName}})</option>{{end}}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Connections</label>
+                            <div id="connections" class="border rounded p-4 min-h-24 max-h-64 overflow-y-auto bg-gray-50">
+                                <p class="text-gray-500 text-sm">Select a profile to load connections</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Output Path</label>
+                            <input type="text" name="output_path" id="output-path" required class="w-full p-2 border rounded" value="airflow_connections.csv">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">File Encryption Key (optional)</label>
+                            <div class="flex gap-2">
+                                <input type="text" name="file_key" id="file-key" class="flex-1 p-2 border rounded font-mono text-sm" placeholder="Auto-generate if empty">
+                                <button type="button" onclick="fetch('/htmx/fernet/generate').then(r=>r.text()).then(k=>document.getElementById('file-key').value=k)" class="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">Generate</button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">Export</button>
+                    </div>
+                </form>
+
+                <div id="result" class="mt-6"></div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
