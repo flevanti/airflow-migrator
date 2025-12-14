@@ -17,8 +17,8 @@ import (
 // App information - single source of truth
 const (
 	Name         = "Airflow Connection Migrator"
-	Version      = "1.0.6"
-	Build        = "6"
+	Version      = "1.0.7"
+	Build        = "7"
 	License      = "Apache 2.0"
 	GitHub       = "https://github.com/flevanti/airflow-migrator"
 	GitHubPR     = "https://github.com/flevanti/airflow-migrator/pulls"
