@@ -2,73 +2,132 @@
 <html lang="en">
 {{template "head" .}}
 <body class="bg-gray-100 min-h-screen">
-    {{template "nav" .}}
+{{template "nav" .}}
 
-    <main class="container mx-auto p-6">
-        <div class="max-w-4xl mx-auto">
-            <div class="bg-white rounded-lg shadow-md p-8">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Connection Profiles</h2>
-                    <button onclick="document.getElementById('modal').classList.remove('hidden')" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">+ New Profile</button>
-                </div>
-                <div id="profiles-list" hx-get="/htmx/profiles/list" hx-trigger="load">
-                    <p class="text-gray-500">Loading...</p>
-                </div>
+<main class="container mx-auto p-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Connection Profiles</h2>
+                <button onclick="openModal()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">+ New Profile</button>
             </div>
-        </div>
-    </main>
-
-    <!-- Modal -->
-    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold">New Profile</h3>
-                <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div id="profiles-list" hx-get="/htmx/profiles/list" hx-trigger="load">
+                <p class="text-gray-500">Loading...</p>
             </div>
-            <form hx-post="/htmx/profiles/save" hx-target="#profiles-list" hx-on::after-request="if(event.detail.successful) document.getElementById('modal').classList.add('hidden')">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Name</label>
-                        <input type="text" name="name" required class="w-full p-2 border rounded" placeholder="Dev Environment">
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">DB Host</label>
-                            <input type="text" name="db_host" required class="w-full p-2 border rounded" placeholder="localhost">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">DB Port</label>
-                            <input type="number" name="db_port" value="5432" required class="w-full p-2 border rounded">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">DB Name</label>
-                        <input type="text" name="db_name" required class="w-full p-2 border rounded" placeholder="airflow">
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">DB User</label>
-                            <input type="text" name="db_user" required class="w-full p-2 border rounded" placeholder="airflow">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">DB Password</label>
-                            <input type="password" name="db_password" required class="w-full p-2 border rounded">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Fernet Key</label>
-                        <div class="flex gap-2">
-                            <input type="text" name="fernet_key" id="fernet-key" required class="flex-1 p-2 border rounded font-mono text-sm" placeholder="Base64 key">
-                            <button type="button" onclick="fetch('/htmx/fernet/generate').then(r=>r.text()).then(k=>document.getElementById('fernet-key').value=k)" class="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">Generate</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex justify-end gap-2 mt-6">
-                    <button type="button" onclick="document.getElementById('modal').classList.add('hidden')" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save</button>
-                </div>
-            </form>
         </div>
     </div>
+</main>
+
+<!-- Modal for New/Edit -->
+<div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold" id="modal-title">New Profile</h3>
+            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        <form hx-post="/htmx/profiles/save" hx-target="#profiles-list" hx-on::after-request="if(event.detail.successful) closeModal()">
+            <input type="hidden" name="id" id="form-id">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" name="name" id="form-name" required class="w-full p-2 border rounded" placeholder="Dev Environment">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">DB Host</label>
+                        <input type="text" name="db_host" id="form-db_host" required class="w-full p-2 border rounded" placeholder="localhost">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">DB Port</label>
+                        <input type="number" name="db_port" id="form-db_port" value="5432" required class="w-full p-2 border rounded">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">DB Name</label>
+                    <input type="text" name="db_name" id="form-db_name" required class="w-full p-2 border rounded" placeholder="airflow">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">DB User</label>
+                        <input type="text" name="db_user" id="form-db_user" required class="w-full p-2 border rounded" placeholder="airflow">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">DB Password</label>
+                        <input type="password" name="db_password" id="form-db_password" class="w-full p-2 border rounded" placeholder="Leave blank to keep existing">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Fernet Key</label>
+                    <div class="flex gap-2">
+                        <input type="password" name="fernet_key" id="form-fernet_key" class="flex-1 p-2 border rounded font-mono text-sm" placeholder="Leave blank to keep existing">
+                        <button type="button" onclick="generateFernet()" class="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">Generate</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1" id="fernet-hint"></p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function generateFernet() {
+        fetch('/htmx/fernet/generate')
+            .then(r => r.text())
+            .then(k => {
+                document.getElementById('form-fernet_key').value = k;
+                document.getElementById('fernet-hint').textContent = 'New key generated (hidden for security)';
+            });
+    }
+
+    function openModal(profileId) {
+        document.getElementById('modal').classList.remove('hidden');
+        if (profileId) {
+            document.getElementById('modal-title').textContent = 'Edit Profile';
+            document.getElementById('form-db_password').placeholder = 'Leave blank to keep existing';
+            document.getElementById('form-db_password').required = false;
+            document.getElementById('form-fernet_key').placeholder = 'Leave blank to keep existing';
+            document.getElementById('form-fernet_key').required = false;
+            document.getElementById('fernet-hint').textContent = '';
+            fetch('/htmx/profiles/' + profileId)
+                .then(r => r.json())
+                .then(p => {
+                    document.getElementById('form-id').value = p.id;
+                    document.getElementById('form-name').value = p.name;
+                    document.getElementById('form-db_host').value = p.db_host;
+                    document.getElementById('form-db_port').value = p.db_port;
+                    document.getElementById('form-db_name').value = p.db_name;
+                    document.getElementById('form-db_user').value = p.db_user;
+                });
+        } else {
+            document.getElementById('modal-title').textContent = 'New Profile';
+            document.getElementById('form-db_password').placeholder = '';
+            document.getElementById('form-db_password').required = true;
+            document.getElementById('form-fernet_key').placeholder = 'Base64 key';
+            document.getElementById('form-fernet_key').required = true;
+            document.getElementById('fernet-hint').textContent = '';
+            resetForm();
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('modal').classList.add('hidden');
+        resetForm();
+    }
+
+    function resetForm() {
+        document.getElementById('form-id').value = '';
+        document.getElementById('form-name').value = '';
+        document.getElementById('form-db_host').value = '';
+        document.getElementById('form-db_port').value = '5432';
+        document.getElementById('form-db_name').value = '';
+        document.getElementById('form-db_user').value = '';
+        document.getElementById('form-db_password').value = '';
+        document.getElementById('form-fernet_key').value = '';
+    }
+</script>
 </body>
 </html>

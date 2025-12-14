@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,7 +9,7 @@ import (
 	"github.com/flevanti/airflow-migrator/internal/core/models"
 )
 
-func TestCSV_WriteAndRead(t *testing.T) {
+func TestCSV_WriteAndReadEncrypted(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "csv-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -16,6 +17,16 @@ func TestCSV_WriteAndRead(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	csvPath := filepath.Join(tmpDir, "test.csv")
+
+	// Create a Fernet key for testing
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+	fernet, err := NewFernet(key)
+	if err != nil {
+		t.Fatalf("failed to create fernet: %v", err)
+	}
 
 	// Create test records
 	records := []*models.ExportRecord{
@@ -26,7 +37,7 @@ func TestCSV_WriteAndRead(t *testing.T) {
 			Host:        "localhost",
 			Schema:      "airflow",
 			Login:       "airflow",
-			Password:    "encrypted_password_1",
+			Password:    "secret_password",
 			Port:        5432,
 			Extra:       `{"sslmode": "disable"}`,
 			ExportedAt:  "2024-01-15T10:30:00Z",
@@ -38,22 +49,22 @@ func TestCSV_WriteAndRead(t *testing.T) {
 			Host:        "api.example.com",
 			Schema:      "",
 			Login:       "api_user",
-			Password:    "encrypted_password_2",
+			Password:    "api_secret",
 			Port:        443,
 			Extra:       "",
 			ExportedAt:  "2024-01-15T10:30:00Z",
 		},
 	}
 
-	// Write
-	if err := WriteCSV(csvPath, records); err != nil {
-		t.Fatalf("WriteCSV failed: %v", err)
+	// Write encrypted
+	if err := WriteEncryptedCSV(csvPath, records, fernet); err != nil {
+		t.Fatalf("WriteEncryptedCSV failed: %v", err)
 	}
 
-	// Read back
-	readRecords, err := ReadCSV(csvPath)
+	// Read and decrypt
+	readRecords, err := ReadEncryptedCSV(csvPath, fernet)
 	if err != nil {
-		t.Fatalf("ReadCSV failed: %v", err)
+		t.Fatalf("ReadEncryptedCSV failed: %v", err)
 	}
 
 	if len(readRecords) != len(records) {
@@ -75,21 +86,51 @@ func TestCSV_WriteAndRead(t *testing.T) {
 	}
 }
 
+func TestCSV_WrongKey(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "csv-test-*")
+	defer os.RemoveAll(tmpDir)
+
+	csvPath := filepath.Join(tmpDir, "test.csv")
+
+	// Create two different keys
+	key1, _ := GenerateKey()
+	key2, _ := GenerateKey()
+	fernet1, _ := NewFernet(key1)
+	fernet2, _ := NewFernet(key2)
+
+	records := []*models.ExportRecord{
+		{ConnID: "test", ConnType: "postgres", Password: "secret"},
+	}
+
+	// Write with key1
+	if err := WriteEncryptedCSV(csvPath, records, fernet1); err != nil {
+		t.Fatalf("WriteEncryptedCSV failed: %v", err)
+	}
+
+	// Try to read with key2 - should fail
+	_, err := ReadEncryptedCSV(csvPath, fernet2)
+	if err == nil {
+		t.Error("should fail with wrong key")
+	}
+}
+
 func TestCSV_EmptyFile(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "csv-test-*")
 	defer os.RemoveAll(tmpDir)
 
 	csvPath := filepath.Join(tmpDir, "empty.csv")
+	key, _ := GenerateKey()
+	fernet, _ := NewFernet(key)
 
 	// Write empty
-	if err := WriteCSV(csvPath, nil); err != nil {
-		t.Fatalf("WriteCSV failed: %v", err)
+	if err := WriteEncryptedCSV(csvPath, nil, fernet); err != nil {
+		t.Fatalf("WriteEncryptedCSV failed: %v", err)
 	}
 
 	// Read back
-	records, err := ReadCSV(csvPath)
+	records, err := ReadEncryptedCSV(csvPath, fernet)
 	if err != nil {
-		t.Fatalf("ReadCSV failed: %v", err)
+		t.Fatalf("ReadEncryptedCSV failed: %v", err)
 	}
 
 	if len(records) != 0 {
@@ -102,6 +143,8 @@ func TestCSV_SpecialCharacters(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	csvPath := filepath.Join(tmpDir, "special.csv")
+	key, _ := GenerateKey()
+	fernet, _ := NewFernet(key)
 
 	records := []*models.ExportRecord{
 		{
@@ -114,13 +157,13 @@ func TestCSV_SpecialCharacters(t *testing.T) {
 		},
 	}
 
-	if err := WriteCSV(csvPath, records); err != nil {
-		t.Fatalf("WriteCSV failed: %v", err)
+	if err := WriteEncryptedCSV(csvPath, records, fernet); err != nil {
+		t.Fatalf("WriteEncryptedCSV failed: %v", err)
 	}
 
-	readRecords, err := ReadCSV(csvPath)
+	readRecords, err := ReadEncryptedCSV(csvPath, fernet)
 	if err != nil {
-		t.Fatalf("ReadCSV failed: %v", err)
+		t.Fatalf("ReadEncryptedCSV failed: %v", err)
 	}
 
 	if readRecords[0].Description != records[0].Description {
@@ -132,8 +175,104 @@ func TestCSV_SpecialCharacters(t *testing.T) {
 }
 
 func TestCSV_FileNotFound(t *testing.T) {
-	_, err := ReadCSV("/nonexistent/path/file.csv")
+	key, _ := GenerateKey()
+	fernet, _ := NewFernet(key)
+
+	_, err := ReadEncryptedCSV("/nonexistent/path/file.csv", fernet)
 	if err == nil {
 		t.Error("should fail for nonexistent file")
+	}
+}
+
+func TestCSV_EncryptionFlags(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "csv-test-*")
+	defer os.RemoveAll(tmpDir)
+
+	csvPath := filepath.Join(tmpDir, "flags.csv")
+	key, _ := GenerateKey()
+	fernet, _ := NewFernet(key)
+
+	records := []*models.ExportRecord{
+		{
+			ConnID:           "encrypted_conn",
+			ConnType:         "postgres",
+			Password:         "secret",
+			Extra:            `{"key": "value"}`,
+			IsEncrypted:      true,
+			IsExtraEncrypted: true,
+		},
+		{
+			ConnID:           "unencrypted_conn",
+			ConnType:         "http",
+			Password:         "plain",
+			Extra:            "",
+			IsEncrypted:      false,
+			IsExtraEncrypted: false,
+		},
+	}
+
+	if err := WriteEncryptedCSV(csvPath, records, fernet); err != nil {
+		t.Fatalf("WriteEncryptedCSV failed: %v", err)
+	}
+
+	readRecords, err := ReadEncryptedCSV(csvPath, fernet)
+	if err != nil {
+		t.Fatalf("ReadEncryptedCSV failed: %v", err)
+	}
+
+	// Check encryption flags preserved
+	if readRecords[0].IsEncrypted != true {
+		t.Error("IsEncrypted should be true for first record")
+	}
+	if readRecords[0].IsExtraEncrypted != true {
+		t.Error("IsExtraEncrypted should be true for first record")
+	}
+	if readRecords[1].IsEncrypted != false {
+		t.Error("IsEncrypted should be false for second record")
+	}
+	if readRecords[1].IsExtraEncrypted != false {
+		t.Error("IsExtraEncrypted should be false for second record")
+	}
+}
+
+func TestCSV_LargeDataSet(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "csv-test-*")
+	defer os.RemoveAll(tmpDir)
+
+	csvPath := filepath.Join(tmpDir, "large.csv")
+	key, _ := GenerateKey()
+	fernet, _ := NewFernet(key)
+
+	// Create 100 records
+	records := make([]*models.ExportRecord, 100)
+	for i := 0; i < 100; i++ {
+		records[i] = &models.ExportRecord{
+			ConnID:   fmt.Sprintf("conn_%03d", i),
+			ConnType: "postgres",
+			Host:     "localhost",
+			Password: fmt.Sprintf("password_%d", i),
+			Port:     5432 + i,
+		}
+	}
+
+	if err := WriteEncryptedCSV(csvPath, records, fernet); err != nil {
+		t.Fatalf("WriteEncryptedCSV failed: %v", err)
+	}
+
+	readRecords, err := ReadEncryptedCSV(csvPath, fernet)
+	if err != nil {
+		t.Fatalf("ReadEncryptedCSV failed: %v", err)
+	}
+
+	if len(readRecords) != 100 {
+		t.Errorf("expected 100 records, got %d", len(readRecords))
+	}
+
+	// Verify first and last
+	if readRecords[0].ConnID != "conn_000" {
+		t.Errorf("first ConnID: got %q", readRecords[0].ConnID)
+	}
+	if readRecords[99].ConnID != "conn_099" {
+		t.Errorf("last ConnID: got %q", readRecords[99].ConnID)
 	}
 }

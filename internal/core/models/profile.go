@@ -92,9 +92,13 @@ func (p *Profile) ConnectionString() string {
 
 // DSN returns a PostgreSQL DSN (Data Source Name) URL format
 func (p *Profile) DSN() string {
+	sslMode := p.DBSSLMode
+	if sslMode == "" {
+		sslMode = "disable"
+	}
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		p.DBUser, p.DBPassword, p.DBHost, p.DBPort, p.DBName, p.DBSSLMode,
+		p.DBUser, p.DBPassword, p.DBHost, p.DBPort, p.DBName, sslMode,
 	)
 }
 
@@ -141,6 +145,7 @@ type ProfileSummary struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	DBHost    string    `json:"db_host"`
+	DBPort    int       `json:"db_port"`
 	DBName    string    `json:"db_name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -152,6 +157,7 @@ func (p *Profile) Summary() ProfileSummary {
 		ID:        p.ID,
 		Name:      p.Name,
 		DBHost:    p.DBHost,
+		DBPort:    p.DBPort,
 		DBName:    p.DBName,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,

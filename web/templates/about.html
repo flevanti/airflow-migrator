@@ -2,42 +2,59 @@
 <html lang="en">
 {{template "head" .}}
 <body class="bg-gray-100 min-h-screen">
-    {{template "nav" .}}
+{{template "nav" .}}
 
-    <main class="container mx-auto p-6">
-        <div class="max-w-2xl mx-auto">
-            <div class="bg-white rounded-lg shadow-md p-8">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">About</h2>
-                
-                <div class="space-y-4">
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-500">Application</h3>
-                        <p class="text-lg">Airflow Connection Migrator</p>
-                    </div>
-                    
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-500">Version</h3>
-                        <p class="text-lg">1.0.0</p>
-                    </div>
-                    
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-500">Config Directory</h3>
-                        <p class="text-lg font-mono text-sm bg-gray-100 p-2 rounded">{{.ConfigDir}}</p>
-                    </div>
-                    
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-500">Credentials File</h3>
-                        <p class="text-lg font-mono text-sm bg-gray-100 p-2 rounded">{{.CredentialsFile}}</p>
-                    </div>
+<main class="container mx-auto p-6">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">About</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Application</h3>
+                    <p class="text-lg">{{.AppName}}</p>
                 </div>
-                
-                <hr class="my-6">
-                
-                <div class="text-sm text-gray-500">
-                    <p>Export and import Airflow connections between environments with Fernet encryption.</p>
+
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Version</h3>
+                    <p class="text-lg">{{.Version}} (Build {{.Build}})</p>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Config Directory</h3>
+                    <p class="text-lg font-mono text-sm bg-gray-100 p-2 rounded">{{.ConfigDir}}</p>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Temp Directory</h3>
+                    <p class="text-lg font-mono text-sm bg-gray-100 p-2 rounded">{{.TempDir}}</p>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Credentials File</h3>
+                    <p class="text-lg font-mono text-sm bg-gray-100 p-2 rounded">{{.CredentialsFile}}</p>
                 </div>
             </div>
+
+            <hr class="my-6">
+
+            <div class="space-y-2 text-sm text-gray-500">
+                <p>Export and import Airflow connections between environments with Fernet encryption.</p>
+                <p class="pt-2">
+                    <a href="{{.GitHub}}" target="_blank" class="text-blue-600 hover:underline">🔗 GitHub</a>
+                    &nbsp;|&nbsp;
+                    <a href="{{.GitHubIssues}}" target="_blank" class="text-blue-600 hover:underline">🐛 Issues</a>
+                    &nbsp;|&nbsp;
+                    <a href="{{.GitHubPR}}" target="_blank" class="text-blue-600 hover:underline">🔀 Pull Requests</a>
+                </p>
+                <p class="pt-2">
+                    Developer: {{.DevName}} (<a href="mailto:{{.DevEmail}}" class="text-blue-600 hover:underline">{{.DevEmail}}</a>)
+                </p>
+                <p>License: {{.License}}</p>
+                <p>© {{.Year}}</p>
+            </div>
         </div>
-    </main>
+    </div>
+</main>
 </body>
 </html>

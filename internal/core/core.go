@@ -82,20 +82,20 @@ func (m *Migrator) Export(ctx context.Context, req models.ExportRequest) (*model
 		connections = filtered
 	}
 
-	// Process connections: decrypt password/extra with source key
+	// Process connections: decrypt password/extra with source key based on flags
 	var records []*models.ExportRecord
 	for _, conn := range connections {
-		// Decrypt password if encrypted
-		if conn.Password != "" {
+		// Decrypt password only if IsEncrypted flag is true
+		if conn.IsEncrypted && conn.Password != "" {
 			decrypted, err := sourceFernet.DecryptString(conn.Password)
 			if err == nil {
 				conn.Password = decrypted
 			}
-			// If decryption fails, assume plaintext
+			// If decryption fails, keep original value
 		}
 
-		// Decrypt extra if encrypted
-		if conn.Extra != "" {
+		// Decrypt extra only if IsExtraEncrypted flag is true
+		if conn.IsExtraEncrypted && conn.Extra != "" {
 			decrypted, err := sourceFernet.DecryptString(conn.Extra)
 			if err == nil {
 				conn.Extra = decrypted
@@ -103,6 +103,7 @@ func (m *Migrator) Export(ctx context.Context, req models.ExportRequest) (*model
 		}
 
 		// Store decrypted values - will be encrypted as blob by WriteEncryptedCSV
+		// Flags are preserved in the export record
 		records = append(records, conn.ToExportRecord())
 		result.ExportedIDs = append(result.ExportedIDs, conn.ID)
 	}
@@ -227,12 +228,12 @@ func (m *Migrator) Import(ctx context.Context, req models.ImportRequest) (*model
 			}
 		}
 
-		// Re-encrypt password and extra with target Fernet key
-		if conn.Password != "" {
+		// Re-encrypt password and extra with target Fernet key based on flags
+		if conn.IsEncrypted && conn.Password != "" {
 			encrypted, _ := targetFernet.EncryptString(conn.Password)
 			conn.Password = encrypted
 		}
-		if conn.Extra != "" {
+		if conn.IsExtraEncrypted && conn.Extra != "" {
 			encrypted, _ := targetFernet.EncryptString(conn.Extra)
 			conn.Extra = encrypted
 		}

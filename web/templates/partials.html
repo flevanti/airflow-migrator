@@ -30,6 +30,7 @@
         <div class="flex gap-2 items-center">
             <span id="test-{{.ID}}" class="text-sm"></span>
             <button hx-post="/htmx/profiles/test" hx-vals='{"id":"{{.ID}}"}' hx-target="#test-{{.ID}}" class="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200">Test</button>
+            <button onclick="openModal('{{.ID}}')" class="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200">Edit</button>
             <button hx-delete="/htmx/profiles/{{.ID}}" hx-target="#profiles-list" hx-confirm="Delete '{{.Name}}'?" class="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200">Delete</button>
         </div>
     </div>
@@ -107,6 +108,26 @@
     <h4 class="font-medium text-red-800">✗ Import Failed</h4>
     <p class="text-sm text-red-700 mt-1">{{.Error}}</p>
 </div>
+{{end}}
+{{end}}
+
+{{define "import-connections-list"}}
+{{if .Records}}
+<div class="space-y-1">
+    <label class="flex items-center gap-2 text-sm mb-2 font-medium">
+        <input type="checkbox" checked onchange="document.querySelectorAll('input[name=connection_ids]').forEach(c=>c.checked=this.checked)">
+        Select All ({{len .Records}})
+    </label>
+    {{range .Records}}
+    <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="connection_ids" value="{{.ConnID}}" checked>
+        <span class="font-mono">{{.ConnID}}</span>
+        <span class="text-gray-400">({{.ConnType}})</span>
+    </label>
+    {{end}}
+</div>
+{{else}}
+<p class="text-gray-500 text-sm">No connections found in file</p>
 {{end}}
 {{end}}
 

@@ -17,15 +17,17 @@ var csvHeaders = []string{
 
 // ConnectionData holds all connection fields to be encrypted as a blob
 type ConnectionData struct {
-	ConnType    string `json:"conn_type"`
-	Description string `json:"description"`
-	Host        string `json:"host"`
-	Schema      string `json:"schema"`
-	Login       string `json:"login"`
-	Password    string `json:"password"`
-	Port        int    `json:"port"`
-	Extra       string `json:"extra"`
-	ExportedAt  string `json:"exported_at"`
+	ConnType         string `json:"conn_type"`
+	Description      string `json:"description"`
+	Host             string `json:"host"`
+	Schema           string `json:"schema"`
+	Login            string `json:"login"`
+	Password         string `json:"password"`
+	Port             int    `json:"port"`
+	Extra            string `json:"extra"`
+	IsEncrypted      bool   `json:"is_encrypted"`
+	IsExtraEncrypted bool   `json:"is_extra_encrypted"`
+	ExportedAt       string `json:"exported_at"`
 }
 
 // WriteEncryptedCSV writes connections to a CSV file with encrypted data.
@@ -48,15 +50,17 @@ func WriteEncryptedCSV(path string, records []*models.ExportRecord, fernet *Fern
 	for _, r := range records {
 		// Create data blob
 		data := ConnectionData{
-			ConnType:    r.ConnType,
-			Description: r.Description,
-			Host:        r.Host,
-			Schema:      r.Schema,
-			Login:       r.Login,
-			Password:    r.Password,
-			Port:        r.Port,
-			Extra:       r.Extra,
-			ExportedAt:  r.ExportedAt,
+			ConnType:         r.ConnType,
+			Description:      r.Description,
+			Host:             r.Host,
+			Schema:           r.Schema,
+			Login:            r.Login,
+			Password:         r.Password,
+			Port:             r.Port,
+			Extra:            r.Extra,
+			IsEncrypted:      r.IsEncrypted,
+			IsExtraEncrypted: r.IsExtraEncrypted,
+			ExportedAt:       r.ExportedAt,
 		}
 
 		// Serialize to JSON
@@ -123,16 +127,18 @@ func ReadEncryptedCSV(path string, fernet *Fernet) ([]*models.ExportRecord, erro
 		}
 
 		records = append(records, &models.ExportRecord{
-			ConnID:      connID,
-			ConnType:    data.ConnType,
-			Description: data.Description,
-			Host:        data.Host,
-			Schema:      data.Schema,
-			Login:       data.Login,
-			Password:    data.Password,
-			Port:        data.Port,
-			Extra:       data.Extra,
-			ExportedAt:  data.ExportedAt,
+			ConnID:           connID,
+			ConnType:         data.ConnType,
+			Description:      data.Description,
+			Host:             data.Host,
+			Schema:           data.Schema,
+			Login:            data.Login,
+			Password:         data.Password,
+			Port:             data.Port,
+			Extra:            data.Extra,
+			IsEncrypted:      data.IsEncrypted,
+			IsExtraEncrypted: data.IsExtraEncrypted,
+			ExportedAt:       data.ExportedAt,
 		})
 	}
 

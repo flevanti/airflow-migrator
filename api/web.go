@@ -8,11 +8,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/flevanti/airflow-migrator/internal/app"
 	"github.com/flevanti/airflow-migrator/internal/core/models"
+	"github.com/flevanti/airflow-migrator/internal/core/services"
 	"github.com/flevanti/airflow-migrator/web"
 )
 
@@ -36,11 +39,13 @@ func (s *Server) SetupWebRoutes() {
 	s.mux.HandleFunc("POST /htmx/fernet/validate", s.htmxValidateFernet)
 	s.mux.HandleFunc("GET /htmx/profiles/list", s.htmxListProfiles)
 	s.mux.HandleFunc("POST /htmx/profiles/save", s.htmxSaveProfile)
+	s.mux.HandleFunc("GET /htmx/profiles/{id}", s.htmxGetProfile)
 	s.mux.HandleFunc("POST /htmx/profiles/test", s.htmxTestProfile)
 	s.mux.HandleFunc("DELETE /htmx/profiles/{id}", s.htmxDeleteProfile)
 	s.mux.HandleFunc("GET /htmx/connections/list", s.htmxListConnections)
 	s.mux.HandleFunc("POST /htmx/export", s.htmxExport)
 	s.mux.HandleFunc("POST /htmx/import", s.htmxImport)
+	s.mux.HandleFunc("POST /htmx/import/preview", s.htmxImportPreview)
 	s.mux.HandleFunc("GET /download/{filename}", s.handleDownload)
 }
 
@@ -83,7 +88,18 @@ func (s *Server) handleAboutPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, "about", map[string]any{
 		"Page":            "about",
 		"Title":           "About",
+		"AppName":         app.Name,
+		"Version":         app.Version,
+		"Build":           app.Build,
+		"License":         app.License,
+		"GitHub":          app.GitHub,
+		"GitHubPR":        app.GitHubPR,
+		"GitHubIssues":    app.GitHubIssues,
+		"DevName":         app.DevName,
+		"DevEmail":        app.DevEmail,
+		"Year":            app.CurrentYear(),
 		"ConfigDir":       s.configDir,
+		"TempDir":         os.TempDir(),
 		"CredentialsFile": filepath.Join(s.configDir, "credentials.enc"),
 	})
 }
@@ -119,9 +135,30 @@ func (s *Server) htmxSaveProfile(w http.ResponseWriter, r *http.Request) {
 	profile.DBPort = port
 	profile.DBName = r.FormValue("db_name")
 	profile.DBUser = r.FormValue("db_user")
-	profile.DBPassword = r.FormValue("db_password")
 	profile.DBSSLMode = r.FormValue("db_ssl_mode")
-	profile.FernetKey = r.FormValue("fernet_key")
+
+	// Check if editing existing profile
+	existingID := r.FormValue("id")
+	if existingID != "" {
+		profile.ID = existingID
+		// Load existing secrets if not provided
+		existingProfile := s.loadProfile(existingID)
+		if existingProfile != nil {
+			if r.FormValue("db_password") == "" {
+				profile.DBPassword = existingProfile.DBPassword
+			} else {
+				profile.DBPassword = r.FormValue("db_password")
+			}
+			if r.FormValue("fernet_key") == "" {
+				profile.FernetKey = existingProfile.FernetKey
+			} else {
+				profile.FernetKey = r.FormValue("fernet_key")
+			}
+		}
+	} else {
+		profile.DBPassword = r.FormValue("db_password")
+		profile.FernetKey = r.FormValue("fernet_key")
+	}
 
 	// Save secrets
 	keys := profile.GetSecretKeys()
@@ -134,6 +171,25 @@ func (s *Server) htmxSaveProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Return updated list
 	s.htmxListProfiles(w, r)
+}
+
+func (s *Server) htmxGetProfile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	profile := s.loadProfile(id)
+	if profile == nil {
+		http.Error(w, "Profile not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":      profile.ID,
+		"name":    profile.Name,
+		"db_host": profile.DBHost,
+		"db_port": profile.DBPort,
+		"db_name": profile.DBName,
+		"db_user": profile.DBUser,
+	})
 }
 
 func (s *Server) htmxTestProfile(w http.ResponseWriter, r *http.Request) {
@@ -211,14 +267,69 @@ func (s *Server) htmxExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, _ := s.migrator.Export(r.Context(), req)
-	
+
 	if result.Success {
 		// Store file info for download
 		result.OutputPath = filename
 		result.DownloadURL = "/download/" + filepath.Base(tempPath)
 	}
-	
+
 	s.renderPartial(w, "export-result", result)
+}
+
+func (s *Server) htmxImportPreview(w http.ResponseWriter, r *http.Request) {
+	// Parse multipart form (max 10MB)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	fileKey := r.FormValue("file_key")
+	if fileKey == "" {
+		http.Error(w, "Decryption key is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "No file uploaded", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Save to temp file
+	tempFile := filepath.Join(os.TempDir(), "airflow-preview-"+header.Filename)
+	out, err := os.Create(tempFile)
+	if err != nil {
+		http.Error(w, "Failed to create temp file", http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tempFile)
+	defer out.Close()
+
+	if _, err := io.Copy(out, file); err != nil {
+		http.Error(w, "Failed to save file", http.StatusInternalServerError)
+		return
+	}
+	out.Close()
+
+	// Create Fernet to decrypt
+	fernet, err := services.NewFernet(fileKey)
+	if err != nil {
+		http.Error(w, "Invalid decryption key", http.StatusBadRequest)
+		return
+	}
+
+	// Read and decrypt CSV
+	records, err := services.ReadEncryptedCSV(tempFile, fernet)
+	if err != nil {
+		http.Error(w, "Failed to decrypt file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Render connections list
+	s.renderPartial(w, "import-connections-list", map[string]any{"Records": records})
 }
 
 func (s *Server) htmxImport(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +393,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	// Security: only allow files from temp directory
 	tempPath := filepath.Join(os.TempDir(), filename)
-	
+
 	// Verify the file exists and is in temp directory
 	absPath, err := filepath.Abs(tempPath)
 	if err != nil || !strings.HasPrefix(absPath, os.TempDir()) {
@@ -323,6 +434,11 @@ func (s *Server) getProfileSummaries() []models.ProfileSummary {
 		}
 	}
 
+	// Sort alphabetically by name
+	sort.Slice(profiles, func(i, j int) bool {
+		return strings.ToLower(profiles[i].Name) < strings.ToLower(profiles[j].Name)
+	})
+
 	return profiles
 }
 
@@ -359,12 +475,12 @@ func (s *Server) loadProfile(id string) *models.Profile {
 func profileToJSON(p *models.Profile) string {
 	// Store all non-secret fields
 	data := map[string]any{
-		"id":       p.ID,
-		"name":     p.Name,
-		"db_host":  p.DBHost,
-		"db_port":  p.DBPort,
-		"db_name":  p.DBName,
-		"db_user":  p.DBUser,
+		"id":      p.ID,
+		"name":    p.Name,
+		"db_host": p.DBHost,
+		"db_port": p.DBPort,
+		"db_name": p.DBName,
+		"db_user": p.DBUser,
 	}
 	b, _ := json.Marshal(data)
 	return string(b)

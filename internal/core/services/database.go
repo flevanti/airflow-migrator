@@ -44,7 +44,8 @@ func (d *Database) TestConnection(ctx context.Context) error {
 // ListConnections retrieves all connections from the Airflow database.
 func (d *Database) ListConnections(ctx context.Context) ([]*models.Connection, error) {
 	query := `
-		SELECT conn_id, conn_type, description, host, schema, login, password, port, extra
+		SELECT conn_id, conn_type, description, host, schema, login, password, port, extra, 
+		       is_encrypted, is_extra_encrypted
 		FROM connection
 		ORDER BY conn_id
 	`
@@ -60,6 +61,7 @@ func (d *Database) ListConnections(ctx context.Context) ([]*models.Connection, e
 		conn := &models.Connection{}
 		var description, host, schema, login, password, extra sql.NullString
 		var port sql.NullInt32
+		var isEncrypted, isExtraEncrypted sql.NullBool
 
 		err := rows.Scan(
 			&conn.ID,
@@ -71,6 +73,8 @@ func (d *Database) ListConnections(ctx context.Context) ([]*models.Connection, e
 			&password,
 			&port,
 			&extra,
+			&isEncrypted,
+			&isExtraEncrypted,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
@@ -83,7 +87,8 @@ func (d *Database) ListConnections(ctx context.Context) ([]*models.Connection, e
 		conn.Password = password.String
 		conn.Port = int(port.Int32)
 		conn.Extra = extra.String
-		conn.IsEncrypted = password.Valid && password.String != ""
+		conn.IsEncrypted = isEncrypted.Bool
+		conn.IsExtraEncrypted = isExtraEncrypted.Bool
 
 		connections = append(connections, conn)
 	}
@@ -145,8 +150,8 @@ func (d *Database) ConnectionExists(ctx context.Context, connID string) (bool, e
 // InsertConnection inserts a new connection.
 func (d *Database) InsertConnection(ctx context.Context, conn *models.Connection) error {
 	query := `
-		INSERT INTO connection (conn_id, conn_type, description, host, schema, login, password, port, extra)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO connection (conn_id, conn_type, description, host, schema, login, password, port, extra, is_encrypted, is_extra_encrypted)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	_, err := d.db.ExecContext(ctx, query,
@@ -159,6 +164,8 @@ func (d *Database) InsertConnection(ctx context.Context, conn *models.Connection
 		nullString(conn.Password),
 		nullInt(conn.Port),
 		nullString(conn.Extra),
+		conn.IsEncrypted,
+		conn.IsExtraEncrypted,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert connection: %w", err)
@@ -172,7 +179,8 @@ func (d *Database) UpdateConnection(ctx context.Context, conn *models.Connection
 	query := `
 		UPDATE connection
 		SET conn_type = $2, description = $3, host = $4, schema = $5,
-		    login = $6, password = $7, port = $8, extra = $9
+		    login = $6, password = $7, port = $8, extra = $9,
+		    is_encrypted = $10, is_extra_encrypted = $11
 		WHERE conn_id = $1
 	`
 
@@ -186,6 +194,8 @@ func (d *Database) UpdateConnection(ctx context.Context, conn *models.Connection
 		nullString(conn.Password),
 		nullInt(conn.Port),
 		nullString(conn.Extra),
+		conn.IsEncrypted,
+		conn.IsExtraEncrypted,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update connection: %w", err)
